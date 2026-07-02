@@ -232,7 +232,7 @@ async function connectWhep() {
         gameVideo.srcObject = event.streams[0];
     };
     pc.addTransceiver("video", { direction: "recvonly" });
-    pc.addTransceiver("audio", { direction: "recvonly" });
+    //pc.addTransceiver("audio", { direction: "recvonly" });
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);

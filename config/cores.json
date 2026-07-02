@@ -1,4 +1,4 @@
 {
-  "ps1": "/home/USER/retrohost/emulator/cores/pcsx_rearmed_libretro.so",
-  "snes": "/home/USER/retrohost/emulator/cores/snes.so"
+  "ps1": "/home/vitor/retrohost/emulator/cores/pcsx_rearmed_libretro.so",
+  "snes": "/home/vitor/retrohost/emulator/cores/snes.so"
 }
