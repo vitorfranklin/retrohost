@@ -9,7 +9,7 @@ RetroHost is a **server-side emulation streaming** system. The emulator runs on 
 This is explicitly **not** RetroArch WebPlayer (the official Emscripten/WASM build that runs the emulator entirely inside the browser). The difference matters:
 
 | | RetroArch WebPlayer | RetroHost |
-|---|---|---|
+| --- | --- | --- |
 | Where the emulator runs | Inside the browser (WASM) | On the server (native binary) |
 | What the browser receives | ROM + `.wasm` core, runs locally | Compressed H.264+Opus via WebRTC |
 | Client requirement | Browser must handle heavy WASM | Any modern browser decodes video |
@@ -21,7 +21,7 @@ Same principle as Steam Link, Moonlight, or Stadia: capture, encode, transmit, d
 
 ## Full pipeline diagram
 
-```
+```text
 ┌─────────────────────────── Server (Pi or x86_64) ─────────────────────────────┐
 │                                                                                  │
 │  RetroArch (headless)                                                           │
@@ -103,18 +103,21 @@ The browser captures keyboard (`keydown`/`keyup`) and gamepad (`navigator.getGam
 Two backend implementations, selected by `HOMEGAMES_INPUT_PROVIDER`:
 
 **`uinput` (Raspberry Pi):**
+
 - Uses `python3-evdev` (installed via `apt`, not pip — compiling the C extension on Pi 3 would OOM/timeout) to create a virtual keyboard device via `/dev/uinput`.
 - RetroArch reads it exactly like a physical USB keyboard because it already uses `input_driver = "udev"`.
 - Design choice: virtual keyboard, not virtual gamepad — RetroArch already has default keyboard binds for the RetroPad (`input_player1_a = "x"`, `input_player1_up = "up"`, etc.), so no RetroArch configuration is needed.
 - `release_all()` is called when the WebSocket disconnects to prevent stuck keys if the tab is closed mid-press.
 
 **`sdl` (Docker/WSL2):**
+
 - WSL2 has no `udevd` — `libudev` cannot enumerate devices even when `uinput` creates a device node. Exhaustively tested: keyboard uinput, gamepad uinput, manual `mknod` of `/dev/input/eventN`, manual libudev metadata, running `udevd` — all fail in the same way.
 - Solution: `container/sdl_input_preload.c`, a shared library that intercepts `SDL_Init` in the RetroArch process via `LD_PRELOAD` and creates a virtual SDL2 joystick inside it. No udev dependency.
 - A UNIX DGRAM socket (`/tmp/retrohost_input.sock`) receives `"b <btn_index> <0|1>"` messages from `backend/app/input/sdl_gamepad.py`.
 - D-pad is exposed as **buttons** b11–b14 (not hat), confirmed via `SDL_GameControllerMappingForDeviceIndex`.
 
 **Multi-device / session transfer:**
+
 - Only one WebSocket client is active at a time. When a new client connects, the previous one is closed with code `4000` ("control taken"). The previous client's browser detects this code and returns to the idle view without stopping the game.
 
 ### 5. ROM storage
@@ -136,7 +139,7 @@ Two backend implementations, selected by `HOMEGAMES_INPUT_PROVIDER`:
 
 ## Session lifecycle
 
-```
+```text
 POST /play
   │
   ├─ InputProvider.connect()        # create virtual input device BEFORE RetroArch starts
@@ -164,7 +167,7 @@ The Docker image (`Dockerfile`) packages the full pipeline into a single contain
 
 **Encoder auto-detection** runs at container startup via real encode-probes:
 
-```
+```bash
 ffmpeg -f lavfi -i testsrc=size=256x240:rate=30 -t 0.3 -c:v <encoder> -f null -
 ```
 
@@ -173,7 +176,7 @@ Exit code 0 = encoder works (tests the full path: library + driver + device). Pr
 **GPU flags are optional:**
 
 | Situation | Flag |
-|---|---|
+| --- | --- |
 | NVIDIA (NVENC) | `--gpus all` (requires nvidia-container-toolkit on host) |
 | Intel/AMD (VAAPI/QSV) | `--device /dev/dri` |
 | No GPU | _(no flag)_ — falls back to libx264 |
@@ -181,7 +184,7 @@ Exit code 0 = encoder works (tests the full path: library + driver + device). Pr
 **What changes vs Raspberry Pi:**
 
 | | Raspberry Pi | Docker |
-|---|---|---|
+| --- | --- | --- |
 | Video encoder | `h264_v4l2m2m` | auto-detected |
 | Base | Raspberry Pi OS | `ubuntu:24.04` |
 | Input | uinput/udev | SDL2 virtual joystick via LD_PRELOAD |
@@ -194,7 +197,7 @@ Exit code 0 = encoder works (tests the full path: library + driver + device). Pr
 
 ## Project structure
 
-```
+```text
 retrohost/
 ├── backend/
 │   ├── requirements.txt
@@ -302,6 +305,7 @@ bash scripts/setup.sh
 ```
 
 The script is interactive and idempotent. It handles all remaining steps automatically:
+
 - Configures RetroArch headless mode
 - Downloads MediaMTX (auto-selects ARMv7 or ARM64 binary)
 - Installs uinput remote input
@@ -325,7 +329,7 @@ curl http://localhost:8000/health
 ## Known design trade-offs
 
 | Trade-off | Decision | Reason |
-|---|---|---|
+| --- | --- | --- |
 | External ffmpeg process instead of RetroArch encoder | External | Pi's `h264_v4l2m2m` fails inside RetroArch (`VIDIOC_S_PARM` not implemented) |
 | Virtual keyboard instead of virtual gamepad (Pi) | Keyboard | RetroArch already has default keyboard binds; no config needed |
 | `wsproto` instead of `websockets` | `wsproto` | No ARMv7 wheel for `websockets`; `wsproto` is pure Python |
