@@ -1,16 +1,16 @@
-"""Driver concreto que executa jogos via RetroArch (subprocess).
+"""Concrete driver that runs games via RetroArch (subprocess).
 
-O mapeamento console -> core libretro é lido de config/cores.json. Se o core
-configurado para o console do jogo não existir no disco, levantamos
-CoreNotConfiguredError em vez de tentar executar — o serviço de player traduz
-isso para uma resposta HTTP amigável.
+The console -> libretro core mapping is read from config/cores.json. If the core
+configured for the game's console does not exist on disk, we raise
+CoreNotConfiguredError instead of trying to run — the player service translates
+this into a friendly HTTP response.
 
-RetroArch sempre roda headless (sem HDMI/display físico): grava vídeo raw +
-áudio PCM num named pipe (FIFO) via --recordconfig, que o FFmpegStreamingProvider
-lê do outro lado para codificar e publicar via WebRTC. video_driver=null,
-input_driver=udev e audio_driver=alsa precisam estar configurados em
-retroarch.cfg no Pi (ver scripts/setup_streaming.sh) — sem isso o RetroArch
-falha ao inicializar ou roda em "fast forward" (audio_sync sem áudio real).
+RetroArch always runs headless (no HDMI/physical display): it records raw video
++ PCM audio into a named pipe (FIFO) via --recordconfig, which FFmpegStreamingProvider
+reads on the other end to encode and publish via WebRTC. video_driver=null,
+input_driver=udev and audio_driver=alsa must be configured in retroarch.cfg on
+the Pi (see scripts/setup_streaming.sh) — without this RetroArch fails to
+initialize or runs in "fast forward" (audio_sync without real audio).
 """
 import json
 import os
@@ -22,8 +22,8 @@ from typing import Any
 from app.core.config import settings
 from app.drivers.base import CoreNotConfiguredError, EmulatorDriver
 
-# Nomes de BIOS de PS1 que o core Beetle PSX procura (JP/US/EU). Copiamos a BIOS
-# encontrada no storage com os três nomes para cobrir qualquer região da ROM.
+# PS1 BIOS filenames that the Beetle PSX core looks for (JP/US/EU). We copy the
+# BIOS found in storage using all three names to cover any ROM region.
 _PS1_BIOS_NAMES = ("scph5500.bin", "scph5501.bin", "scph5502.bin")
 
 
@@ -50,19 +50,20 @@ class RetroArchDriver(EmulatorDriver):
         return Path(core_path)
 
     def _ensure_ps1_bios(self, game: Any) -> None:
-        """Copia a BIOS de PS1 do storage para o SYSTEM_DIR, se necessário.
+        """Copy the PS1 BIOS from storage to SYSTEM_DIR, if needed.
 
-        O core Beetle PSX (usado no container x86) exige a BIOS — diferente do
-        pcsx-rearmed do Pi, que tem HLE BIOS. Procuramos um scph*.bin no mesmo
-        storage das ROMs (effective_roms_dir) e copiamos com os nomes que o core
-        espera. No-op se SYSTEM_DIR não está configurado (ex: no Pi) ou se a BIOS
-        já está lá. Falhas aqui não levantam — o RetroArch dará o erro claro.
+        The Beetle PSX core (used in the x86 container) requires a BIOS — unlike
+        pcsx-rearmed on the Pi, which has HLE BIOS. We look for a scph*.bin in the
+        same storage as the ROMs (effective_roms_dir) and copy it with the names the
+        core expects. No-op if SYSTEM_DIR is not configured (e.g. on the Pi) or if
+        the BIOS is already there. Failures here do not raise — RetroArch will give
+        a clear error message.
         """
         if not settings.SYSTEM_DIR or game.console != "ps1":
             return
         system_dir = Path(settings.SYSTEM_DIR)
         if (system_dir / _PS1_BIOS_NAMES[1]).exists():
-            return  # já copiada
+            return  # already copied
         from app.services.storage import effective_roms_dir
 
         try:
@@ -76,14 +77,15 @@ class RetroArchDriver(EmulatorDriver):
             return
 
     def _resolve_launch_file(self, launch_file: str) -> str:
-        """Conserta .cue com referências FILE quebradas (path absoluto Windows).
+        """Fix .cue files with broken FILE references (absolute Windows path).
 
-        ROMs dumpadas em PCs Windows (ePSXe etc.) gravam no .cue caminhos como
-        FILE "C:\\CRASH 2.BIN" ou um path absoluto inteiro — que não existem no
-        Linux. Se a referência não existir mas houver um arquivo de mesmo nome-
-        base (ou um único .bin/.iso) ao lado do .cue, geramos um .cue corrigido
-        num tmp apontando para o arquivo real (sem alterar o original no storage).
-        Retorna o caminho a usar (o tmp corrigido, ou o original se estiver ok).
+        ROMs dumped on Windows PCs (ePSXe etc.) write paths like
+        FILE "C:\\CRASH 2.BIN" or a full absolute path in the .cue — which do not
+        exist on Linux. If the reference doesn't exist but there is a file with the
+        same base name (or a single .bin/.iso) next to the .cue, we generate a
+        corrected .cue in a tmp path pointing to the real file (without modifying
+        the original in storage). Returns the path to use (the corrected tmp, or
+        the original if it was already valid).
         """
         path = Path(launch_file)
         if path.suffix.lower() != ".cue":
@@ -99,15 +101,15 @@ class RetroArchDriver(EmulatorDriver):
         for line in lines:
             stripped = line.strip()
             if stripped.upper().startswith("FILE "):
-                # extrai o nome entre aspas
+                # extract the filename between quotes
                 start, end = line.find('"'), line.rfind('"')
                 if start != -1 and end > start:
                     ref = line[start + 1:end]
                     ref_basename = ref.replace("\\", "/").rsplit("/", 1)[-1]
-                    # Corrige se: (a) a ref tem path embutido (Windows "C:\..." ou
-                    # absoluto "/..."), que o core tentaria abrir literalmente, ou
-                    # (b) nem o basename existe ao lado do .cue. Caso contrário,
-                    # mantém (ref já é um nome relativo válido, como no Tarzan).
+                    # Fix if: (a) the ref has an embedded path (Windows "C:\..." or
+                    # absolute "/..."), which the core would try to open literally, or
+                    # (b) the basename doesn't exist next to the .cue. Otherwise,
+                    # keep it (ref is already a valid relative name, as in Tarzan).
                     has_path = ("\\" in ref) or (":" in ref) or ("/" in ref)
                     if has_path or not (game_dir / ref_basename).is_file():
                         replacement = self._find_track_file(game_dir, ref_basename)
@@ -118,10 +120,10 @@ class RetroArchDriver(EmulatorDriver):
 
         if not changed:
             return launch_file
-        # O .cue corrigido PRECISA ficar no mesmo diretório dos arquivos de faixa:
-        # o core (Mednafen/Beetle PSX) resolve a linha FILE relativa ao diretório
-        # do .cue, não ao cwd. Gravamos um .cue irmão com prefixo. Se o diretório
-        # for read-only, caímos de volta no original (o core dará o erro claro).
+        # The corrected .cue MUST live in the same directory as the track files:
+        # the core (Mednafen/Beetle PSX) resolves FILE lines relative to the .cue's
+        # directory, not cwd. We write a sibling .cue with a prefix. If the directory
+        # is read-only, we fall back to the original (the core will give a clear error).
         fixed_cue = path.with_name(f".homegames_{path.name}")
         try:
             fixed_cue.write_text("\n".join(new_lines) + "\n")
@@ -131,14 +133,14 @@ class RetroArchDriver(EmulatorDriver):
 
     @staticmethod
     def _find_track_file(game_dir: Path, ref_basename: str) -> str | None:
-        """Acha o arquivo de faixa real para uma referência FILE quebrada."""
+        """Find the real track file for a broken FILE reference."""
         stem = Path(ref_basename).stem
-        # 1) mesmo nome-base, qualquer extensão de imagem de disco
+        # 1) same base name, any disk image extension
         for ext in (".bin", ".iso", ".img"):
             for candidate in game_dir.glob("*"):
                 if candidate.stem.lower() == stem.lower() and candidate.suffix.lower() == ext:
                     return candidate.name
-        # 2) fallback: se há um único .bin/.iso na pasta, usa ele
+        # 2) fallback: if there is a single .bin/.iso in the folder, use it
         images = [p for p in game_dir.iterdir()
                   if p.suffix.lower() in (".bin", ".iso", ".img")]
         if len(images) == 1:
@@ -165,16 +167,16 @@ class RetroArchDriver(EmulatorDriver):
             "-L", str(core_path),
             launch_file,
         ]
-        # cwd = diretório do jogo: cores baseados em .cue (ex: Beetle PSX)
-        # resolvem os arquivos de faixa (.bin) relativos ao cwd, não ao .cue.
-        # Sem isso, "Failed to load content" ao rodar de outro diretório.
+        # cwd = game directory: .cue-based cores (e.g. Beetle PSX)
+        # resolve track files (.bin) relative to cwd, not the .cue.
+        # Without this, "Failed to load content" when running from another directory.
         launch_dir = Path(game.launch_file).parent
         cwd = str(launch_dir) if launch_dir.is_dir() else None
         self._process = subprocess.Popen(command, cwd=cwd, env=self._launch_env())
 
     def _launch_env(self) -> dict[str, str] | None:
-        """Ambiente do RetroArch. No modo de input SDL (container), injeta o
-        LD_PRELOAD do joystick virtual e força SDL a não abrir vídeo/áudio real."""
+        """RetroArch environment. In SDL input mode (container), injects the
+        virtual joystick LD_PRELOAD and forces SDL not to open real video/audio."""
         if settings.INPUT_PROVIDER != "sdl" or not settings.INPUT_SDL_PRELOAD:
             return None
         env = dict(os.environ)

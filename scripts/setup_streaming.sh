@@ -1,33 +1,33 @@
 #!/usr/bin/env bash
-# Configura o Raspberry Pi para rodar RetroArch headless (sem TV/monitor físico)
-# e expor video raw via FIFO para captura externa por ffmpeg.
+# Configure the Raspberry Pi to run RetroArch headless (no physical TV/monitor)
+# and expose raw video via FIFO for external capture by ffmpeg.
 #
-# Idempotente: pode ser executado mais de uma vez sem duplicar configuração.
-# Requer reboot manual depois de alterar /boot/firmware/config.txt na primeira vez.
+# Idempotent: can be run more than once without duplicating configuration.
+# Requires a manual reboot after modifying /boot/firmware/config.txt the first time.
 set -euo pipefail
 
 BOOT_CONFIG="/boot/firmware/config.txt"
 RETROARCH_CFG="$HOME/.config/retroarch/retroarch.cfg"
 
-echo "==> Configurando $BOOT_CONFIG (hotplug HDMI forçado para renderização offscreen)"
+echo "==> Configuring $BOOT_CONFIG (forced HDMI hotplug for offscreen rendering)"
 if ! grep -q "^hdmi_force_hotplug=1" "$BOOT_CONFIG"; then
     sudo cp "$BOOT_CONFIG" "${BOOT_CONFIG}.bak.$(date +%s)"
     sudo tee -a "$BOOT_CONFIG" > /dev/null <<'EOF'
 
-# RetroHost: forca deteccao de display mesmo sem TV/monitor conectado fisicamente
-# (necessario para RetroArch renderizar offscreen para captura/streaming headless)
+# RetroHost: force display detection even without a physically connected TV/monitor
+# (required for RetroArch to render offscreen for headless capture/streaming)
 hdmi_force_hotplug=1
 hdmi_group=2
 hdmi_mode=85
 EOF
-    echo "    Adicionado. REBOOT NECESSARIO (sudo reboot) antes de testar streaming."
+    echo "    Added. REBOOT REQUIRED (sudo reboot) before testing streaming."
 else
-    echo "    Já configurado, nada a fazer."
+    echo "    Already configured, nothing to do."
 fi
 
-echo "==> Configurando $RETROARCH_CFG"
+echo "==> Configuring $RETROARCH_CFG"
 if [[ ! -f "$RETROARCH_CFG" ]]; then
-    echo "    Arquivo não existe ainda. Rode 'retroarch' uma vez (mesmo que falhe) para gerá-lo, depois rode este script de novo."
+    echo "    File does not exist yet. Run 'retroarch' once (even if it fails) to generate it, then re-run this script."
     exit 1
 fi
 
@@ -42,16 +42,16 @@ set_cfg_key() {
     echo "    ${key} = \"${value}\""
 }
 
-# video_driver=null: RetroArch não precisa de display físico nem GPU/shader
-#   compatível — o jogo é capturado via record/FIFO, não exibido localmente.
-# input_driver=udev: não depende de X11/Wayland (o driver "x" exige sessão gráfica).
-# audio_driver=alsa: PulseAudio não roda neste setup headless; ALSA acessa
-#   /dev/snd direto. Sem áudio funcionando, audio_sync não consegue limitar o
-#   ritmo do core e o jogo roda em "fast forward" (bug observado e corrigido).
+# video_driver=null: RetroArch does not need a physical display or compatible
+#   GPU/shader — the game is captured via record/FIFO, not displayed locally.
+# input_driver=udev: does not depend on X11/Wayland (the "x" driver requires a graphical session).
+# audio_driver=alsa: PulseAudio does not run in this headless setup; ALSA accesses
+#   /dev/snd directly. Without working audio, audio_sync cannot throttle the core
+#   and the game runs in "fast forward" (observed and fixed bug).
 set_cfg_key "video_driver" "null"
 set_cfg_key "video_context_driver" ""
 set_cfg_key "video_shader_enable" "false"
 set_cfg_key "input_driver" "udev"
 set_cfg_key "audio_driver" "alsa"
 
-echo "==> Concluído."
+echo "==> Done."

@@ -1,16 +1,16 @@
-"""Mapa: nome lógico de tecla -> keycode evdev/uinput, e índice de botão do
-Gamepad API (mapping "standard") -> nome lógico.
+"""Map: logical key name -> evdev/uinput keycode, and Gamepad API button index
+("standard" mapping) -> logical name.
 
-Os nomes lógicos ("a", "b", "up", "start"...) correspondem aos binds atuais
-de input_player1_* em retroarch.cfg (a="x", b="z", up="up", start="enter",
-etc — confirmado em /home/YOUR_USER/.config/retroarch/retroarch.cfg no Pi real).
-São também o vocabulário usado nas mensagens WebSocket do frontend.
+The logical names ("a", "b", "up", "start"...) correspond to the current
+input_player1_* binds in retroarch.cfg (a="x", b="z", up="up", start="enter",
+etc — confirmed in /home/YOUR_USER/.config/retroarch/retroarch.cfg on the real Pi).
+They are also the vocabulary used in WebSocket messages from the frontend.
 
-Os keycodes abaixo são constantes inteiras hardcoded (não `import evdev`)
-para este módulo continuar importável em qualquer ambiente (Windows dev,
-testes) sem precisar de python3-evdev instalado — só uinput_keyboard.py
-(o único lugar que de fato fala com o kernel) depende de evdev existir.
-Valores conferem com linux/input-event-codes.h.
+The keycodes below are integer constants hardcoded (not `import evdev`)
+so this module remains importable in any environment (Windows dev,
+tests) without python3-evdev installed — only uinput_keyboard.py
+(the only place that actually talks to the kernel) depends on evdev being present.
+Values match linux/input-event-codes.h.
 """
 
 EVDEV_KEYCODES: dict[str, int] = {
@@ -28,16 +28,16 @@ EVDEV_KEYCODES: dict[str, int] = {
     "right": 106,  # KEY_RIGHT
 }
 
-# Índice de botão do Gamepad API ("standard" mapping) -> nome lógico acima.
+# Gamepad API button index ("standard" mapping) -> logical name above.
 #
-# Nota: o botão 0 (posição física "A" num pad estilo Xbox) mapeia para "b",
-# e o botão 1 ("B" físico) mapeia para "a" — convenção usada pelos próprios
-# perfis de autoconfig do libretro para pads Xbox-style. Não validado ainda
-# com um controle físico real; se os botões saírem trocados no teste real,
-# basta inverter esse par aqui (sem mudança de arquitetura).
+# Note: button 0 (physical "A" position on an Xbox-style pad) maps to "b",
+# and button 1 (physical "B") maps to "a" — convention used by libretro's own
+# autoconfig profiles for Xbox-style pads. Not yet validated with a real physical
+# controller; if buttons come out swapped in real testing, just swap this pair
+# here (no architectural changes needed).
 #
-# Índices sem entrada (6, 7 = L2/R2; 10, 11 = L3/R3) ficam de fora
-# deliberadamente — "nul" (sem bind) no RetroArch hoje, sem efeito.
+# Indices without an entry (6, 7 = L2/R2; 10, 11 = L3/R3) are intentionally
+# omitted — "nul" (no bind) in RetroArch today, no effect.
 GAMEPAD_BUTTON_TO_KEY: dict[int, str] = {
     0: "b",
     1: "a",

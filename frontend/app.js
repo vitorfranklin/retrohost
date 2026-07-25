@@ -26,8 +26,8 @@ let whepUrl = null;
 let videoPeerConnection = null;
 let audioPeerConnection = null;
 
-// Mesmo vocabulario do backend (backend/app/input/keymap.py) - nomes
-// logicos que correspondem aos binds input_player1_* do RetroArch.
+// Same vocabulary as the backend (backend/app/input/keymap.py) — logical
+// names that correspond to the input_player1_* binds in RetroArch.
 const KEYBOARD_KEY_TO_INPUT = {
     ArrowUp: "up",
     ArrowDown: "down",
@@ -43,10 +43,10 @@ const KEYBOARD_KEY_TO_INPUT = {
     KeyW: "r",
 };
 
-// Botao 0 do Gamepad API (posicao fisica "A" num pad Xbox) -> "b" do
-// RetroPad, e vice-versa - convencao usada pelos autoconfigs do libretro
-// para pads Xbox-style. Nao validado com controle fisico ainda; se sair
-// trocado no teste real, inverter aqui (sem mudanca de arquitetura).
+// Gamepad API button 0 (physical "A" position on an Xbox pad) -> RetroPad "b",
+// and vice-versa — convention used by libretro autoconfigs for Xbox-style pads.
+// Not yet validated with a real physical controller; if swapped in real testing,
+// flip this mapping here (no architectural changes needed).
 const GAMEPAD_BUTTON_TO_KEY = {
     0: "b", 1: "a", 2: "y", 3: "x",
     4: "l", 5: "r",
@@ -62,7 +62,7 @@ async function fetchJSON(url, options) {
     const response = await fetch(url, options);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(data.detail || `Erro ${response.status}`);
+        throw new Error(data.detail || `Error ${response.status}`);
     }
     return data;
 }
@@ -70,7 +70,7 @@ async function fetchJSON(url, options) {
 function renderGames(games) {
     gameList.innerHTML = "";
     if (games.length === 0) {
-        gameList.innerHTML = "<li>Nenhum jogo encontrado. Clique em \"Escanear biblioteca\".</li>";
+        gameList.innerHTML = "<li>No games found. Click \"Scan library\".</li>";
         return;
     }
     for (const game of games) {
@@ -90,7 +90,7 @@ function renderGames(games) {
         const btn = document.createElement("button");
         btn.className = "play-btn";
         btn.dataset.id = game.id;
-        btn.textContent = "Jogar";
+        btn.textContent = "Play";
         btn.addEventListener("click", () => playGame(game.id));
 
         meta.appendChild(consoleTag);
@@ -107,7 +107,7 @@ async function loadConfig() {
         whepUrl = config.whep_url;
         applyStorageConfig(config.storage);
     } catch (err) {
-        statusLine.textContent = `Erro ao carregar config: ${err.message}`;
+        statusLine.textContent = `Error loading config: ${err.message}`;
     }
 }
 
@@ -131,7 +131,7 @@ function applyStorageConfig(storage) {
 async function submitStorageForm(event) {
     event.preventDefault();
     const mode = storageForm.querySelector('input[name="storage-mode"]:checked').value;
-    statusLine.textContent = "Configurando storage...";
+    statusLine.textContent = "Configuring storage...";
     try {
         const result = mode === "cifs"
             ? await fetchJSON("/storage/cifs", {
@@ -147,10 +147,10 @@ async function submitStorageForm(event) {
             })
             : await fetchJSON("/storage/local", { method: "POST" });
         cifsPasswordInput.value = "";
-        statusLine.textContent = `Storage configurado: ${result.scanned} jogo(s) encontrado(s).`;
+        statusLine.textContent = `Storage configured: ${result.scanned} game(s) found.`;
         renderGames(result.games);
     } catch (err) {
-        statusLine.textContent = `Erro ao configurar storage: ${err.message}`;
+        statusLine.textContent = `Error configuring storage: ${err.message}`;
     }
 }
 
@@ -158,20 +158,20 @@ async function refreshStatus() {
     try {
         const data = await fetchJSON("/status");
         if (data.running && data.game) {
-            statusLine.textContent = `Status: jogando ${data.game.title}`;
+            statusLine.textContent = `Status: playing ${data.game.title}`;
         } else {
-            statusLine.textContent = "Status: ocioso";
+            statusLine.textContent = "Status: idle";
         }
         updateBackgroundGameBanner(data);
     } catch (err) {
-        statusLine.textContent = `Status: erro (${err.message})`;
+        statusLine.textContent = `Status: error (${err.message})`;
     }
 }
 
 function updateBackgroundGameBanner(data) {
     const isIdleView = !idleView.classList.contains("hidden");
     if (isIdleView && data.running && data.game) {
-        backgroundGameText.textContent = `${data.game.title} está rodando.`;
+        backgroundGameText.textContent = `${data.game.title} is running.`;
         backgroundGameBanner.classList.remove("hidden");
     } else {
         backgroundGameBanner.classList.add("hidden");
@@ -179,7 +179,7 @@ function updateBackgroundGameBanner(data) {
 }
 
 async function joinGame() {
-    statusLine.textContent = "Conectando ao jogo em andamento...";
+    statusLine.textContent = "Connecting to game in progress...";
     try {
         disconnectWhep();
         showPlayView();
@@ -188,7 +188,7 @@ async function joinGame() {
         await refreshStatus();
     } catch (err) {
         showIdleView();
-        statusLine.textContent = `Erro ao conectar: ${err.message}`;
+        statusLine.textContent = `Error connecting: ${err.message}`;
     }
 }
 
@@ -197,19 +197,19 @@ async function loadGames() {
         const games = await fetchJSON("/games");
         renderGames(games);
     } catch (err) {
-        statusLine.textContent = `Erro ao carregar jogos: ${err.message}`;
+        statusLine.textContent = `Error loading games: ${err.message}`;
     }
 }
 
 async function scanLibrary() {
     scanBtn.disabled = true;
-    statusLine.textContent = "Escaneando biblioteca...";
+    statusLine.textContent = "Scanning library...";
     try {
         const result = await fetchJSON("/scan", { method: "POST" });
-        statusLine.textContent = `Escaneado: ${result.scanned} (novos: ${result.added}, atualizados: ${result.updated})`;
+        statusLine.textContent = `Scanned: ${result.scanned} (new: ${result.added}, updated: ${result.updated})`;
         renderGames(result.games);
     } catch (err) {
-        statusLine.textContent = `Erro ao escanear: ${err.message}`;
+        statusLine.textContent = `Error scanning: ${err.message}`;
     } finally {
         scanBtn.disabled = false;
     }
@@ -232,7 +232,7 @@ async function connectWhepTrack(kind, onTrack) {
 
     if (!response.ok) {
         pc.close();
-        throw new Error(`WHEP ${kind} falhou: ${response.status}`);
+        throw new Error(`WHEP ${kind} failed: ${response.status}`);
     }
 
     const answerSdp = await response.text();
@@ -268,12 +268,12 @@ async function connectWhep() {
             gameAudio.srcObject = new MediaStream([event.track]);
 
             gameAudio.play().catch((error) => {
-                console.warn("Autoplay do áudio bloqueado:", error);
+                console.warn("Audio autoplay blocked:", error);
             });
         });
     } catch (error) {
-        // Falha do áudio não deve impedir o jogo.
-        console.warn("Conexão de áudio indisponível:", error);
+        // Audio failure should not prevent the game from running.
+        console.warn("Audio connection unavailable:", error);
         audioPeerConnection = null;
     }
 }
@@ -303,12 +303,12 @@ function connectInputSocket() {
     });
     inputSocket.addEventListener("close", (event) => {
         stopGamepadPolling();
-        // code 4000 = outro dispositivo assumiu o controle (backend fechou ativamente).
-        // Volta para idle sem encerrar o jogo. Qualquer outro close é desconexão normal.
+        // code 4000 = another device took over control (backend closed actively).
+        // Return to idle without stopping the game. Any other close is a normal disconnect.
         if (event.code === 4000 && !playView.classList.contains("hidden")) {
             disconnectWhep();
             showIdleView();
-            statusLine.textContent = "Controle assumido por outro dispositivo.";
+            statusLine.textContent = "Control taken over by another device.";
             refreshStatus();
         }
     });
@@ -378,7 +378,7 @@ function handleGameKeyup(event) {
 }
 
 async function playGame(gameId) {
-    statusLine.textContent = "Iniciando jogo...";
+    statusLine.textContent = "Starting game...";
     try {
         await fetchJSON("/play", {
             method: "POST",
@@ -390,12 +390,12 @@ async function playGame(gameId) {
         connectInputSocket();
         await refreshStatus();
     } catch (err) {
-        statusLine.textContent = `Erro ao iniciar jogo: ${err.message}`;
+        statusLine.textContent = `Error starting game: ${err.message}`;
     }
 }
 
 async function stopGame() {
-    statusLine.textContent = "Encerrando jogo...";
+    statusLine.textContent = "Stopping game...";
     try {
         await fetchJSON("/stop", { method: "POST" });
         disconnectInputSocket();
@@ -404,7 +404,7 @@ async function stopGame() {
         await refreshStatus();
         await loadGames();
     } catch (err) {
-        statusLine.textContent = `Erro ao encerrar jogo: ${err.message}`;
+        statusLine.textContent = `Error stopping game: ${err.message}`;
     }
 }
 
@@ -425,10 +425,10 @@ fullscreenBtn.addEventListener("click", () => {
 document.addEventListener("keydown", handleGameKeydown);
 document.addEventListener("keyup", handleGameKeyup);
 
-// É streaming em tempo real, não há "pausar o jogo" - qualquer tentativa de
-// pausa (clique no vídeo, tecla de mídia do teclado/OS, gesto do sistema)
-// é revertida imediatamente, antes que o usuário confunda isso com o jogo
-// de fato ter parado no Pi.
+// This is real-time streaming, there is no "pause the game" — any pause attempt
+// (video click, media key from keyboard/OS, system gesture)
+// is reverted immediately, before the user mistakes it for the game
+// having actually stopped on the Pi.
 gameVideo.addEventListener("pause", () => {
     if (!playView.classList.contains("hidden")) {
         gameVideo.play().catch(() => {});

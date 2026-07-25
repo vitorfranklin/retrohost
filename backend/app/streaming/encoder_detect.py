@@ -1,26 +1,27 @@
-"""Auto-detecção do encoder de vídeo do ffmpeg que funciona nesta máquina.
+"""Auto-detection of the ffmpeg video encoder that works on this machine.
 
-A imagem do container é agnóstica de GPU: a MESMA imagem roda em NVIDIA, Intel,
-AMD ou só CPU. Em vez de confiar em "o encoder está compilado" ou "o device
-existe" (frágil), testamos cada candidato com um encode-probe REAL — um ffmpeg
-curto (testsrc -> encoder -> null). O primeiro que retorna 0 é usado.
+The container image is GPU-agnostic: the SAME image runs on NVIDIA, Intel,
+AMD, or CPU only. Instead of trusting "the encoder is compiled" or "the device
+exists" (fragile), we test each candidate with a REAL encode-probe — a short
+ffmpeg run (testsrc -> encoder -> null). The first one returning 0 is used.
 
-Probe usa exatamente os mesmos args do perfil real (encoder_profiles), incluindo
-filtros de hwupload do VAAPI/QSV, para não passar no probe e falhar no stream.
+The probe uses exactly the same args as the real profile (encoder_profiles),
+including hwupload filters for VAAPI/QSV, so it doesn't pass the probe
+and fail the real stream.
 
-Resultado cacheado: a detecção roda uma vez por processo, não a cada jogo.
+Result is cached: detection runs once per process, not per game.
 """
 import subprocess
 
 from app.streaming.encoder_profiles import AUTO_DETECT_ORDER, EncoderProfile, get_profile
 
-_PROBE_DURATION = "0.3"  # segundos de vídeo sintético por probe
-_PROBE_SIZE = "256x240"  # resolução pequena, probe rápido
+_PROBE_DURATION = "0.3"  # seconds of synthetic video per probe
+_PROBE_SIZE = "256x240"  # small resolution, fast probe
 _cached_encoder: str | None = None
 
 
 def _probe(profile: EncoderProfile) -> bool:
-    """True se o ffmpeg consegue encodar de fato com este perfil."""
+    """True if ffmpeg can actually encode with this profile."""
     command = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         *profile.pre_input,
@@ -40,11 +41,11 @@ def _probe(profile: EncoderProfile) -> bool:
 
 
 def detect_encoder() -> str:
-    """Retorna o nome do melhor encoder que funciona (cacheado).
+    """Return the name of the best working encoder (cached).
 
-    Testa na ordem nvenc > qsv > vaapi > libx264. libx264 é o fim-da-linha
-    (encoda por software, sempre disponível) — se nada de hardware funcionar,
-    cai nele garantidamente.
+    Tests in order: nvenc > qsv > vaapi > libx264. libx264 is the last resort
+    (software encode, always available) — if no hardware option works, falls back
+    to it unconditionally.
     """
     global _cached_encoder
     if _cached_encoder is not None:
@@ -53,17 +54,17 @@ def detect_encoder() -> str:
         if _probe(get_profile(name)):
             _cached_encoder = name
             return name
-    # Em teoria inalcançável (libx264 sempre passa), mas fail-safe explícito.
+    # Theoretically unreachable (libx264 always passes), but explicit fail-safe.
     _cached_encoder = "libx264"
     return _cached_encoder
 
 
 def describe_encoder(name: str) -> str:
-    """Descrição amigável para log (qual hardware está sendo usado)."""
+    """Human-readable description for logging (which hardware is being used)."""
     return {
-        "h264_nvenc": "h264_nvenc (GPU NVIDIA)",
+        "h264_nvenc": "h264_nvenc (NVIDIA GPU)",
         "h264_qsv": "h264_qsv (Intel QuickSync)",
         "h264_vaapi": "h264_vaapi (GPU via VAAPI - Intel/AMD)",
-        "libx264": "libx264 (CPU/software - nenhuma GPU detectada)",
-        "h264_v4l2m2m": "h264_v4l2m2m (encoder de hardware do Raspberry Pi)",
+        "libx264": "libx264 (CPU/software - no GPU detected)",
+        "h264_v4l2m2m": "h264_v4l2m2m (Raspberry Pi hardware encoder)",
     }.get(name, name)

@@ -1,14 +1,14 @@
-"""Configura de onde o RetroHost lê ROMs: disco local (padrão) ou um share
-de rede CIFS/Samba montado sob demanda no sistema operacional do Pi.
+"""Configures where RetroHost reads ROMs from: local disk (default) or a
+CIFS/Samba network share mounted on-demand on the Pi's operating system.
 
-RetroArchDriver/PlayerService não sabem nem precisam saber qual modo está
-ativo - eles só recebem game.launch_file, um path de arquivo comum. Quem
-decide qual diretório escanear é effective_roms_dir(), usado pelo scanner.
+RetroArchDriver/PlayerService neither know nor need to know which mode is
+active — they only receive game.launch_file, a regular file path. The component
+that decides which directory to scan is effective_roms_dir(), used by the scanner.
 
-Montar/desmontar exige privilégio elevado (mount -t cifs). O backend roda
-`sudo mount`/`sudo umount` restrito por uma regra sudoers de escopo mínimo
-(ver config/sudoers/homegames-mount, instalada via scripts/setup_network_storage.sh)
-- não há sudo livre dentro do processo do serviço.
+Mounting/unmounting requires elevated privilege (mount -t cifs). The backend runs
+`sudo mount`/`sudo umount` restricted by a minimal-scope sudoers rule
+(see config/sudoers/homegames-mount, installed via scripts/setup_network_storage.sh)
+— there is no unrestricted sudo inside the service process.
 """
 import json
 import subprocess
@@ -41,8 +41,8 @@ def _is_mounted() -> bool:
             check=False,
         )
     except OSError:
-        # "mountpoint" não existe neste SO (ex: dev local no Windows) - só o
-        # Pi real monta CIFS de fato, então tratamos como "não montado".
+        # "mountpoint" does not exist on this OS (e.g. local dev on Windows) — only
+        # the real Pi mounts CIFS, so treat as "not mounted".
         return False
     return result.returncode == 0
 
@@ -116,8 +116,8 @@ def set_cifs_storage(host: str, share: str, username: str, password: str, subpat
 
 
 def _mount_from_config(config: dict) -> None:
-    """Monta o CIFS a partir de uma config de storage. Levanta StorageConfigError
-    com mensagem clara em caso de falha. Pressupõe credenciais já gravadas."""
+    """Mount CIFS from a storage config. Raises StorageConfigError with a clear
+    message on failure. Assumes credentials are already written."""
     host, share = config.get("cifs_host"), config.get("cifs_share")
     mount_command = [
         "sudo", "mount", "-t", "cifs",
@@ -133,7 +133,7 @@ def _mount_from_config(config: dict) -> None:
 
 
 def _can_remount() -> bool:
-    """True se o storage está configurado p/ CIFS, não montado e remontável."""
+    """True if storage is configured for CIFS, not mounted, and remountable."""
     config = get_storage_config()
     return (
         config.get("mode") == "cifs"
@@ -145,11 +145,12 @@ def _can_remount() -> bool:
 
 
 def remount_if_configured() -> None:
-    """Remonta o CIFS no boot do container se configurado p/ rede (silencioso).
+    """Remount CIFS on container boot if configured for network (silent).
 
-    O mount CIFS vive no namespace do container e NÃO sobrevive a restart. storage.json
-    e credenciais persistem em volume; isto remonta sem o usuário reconfigurar.
-    Falha silenciosa: não derruba o boot do backend se o servidor estiver offline.
+    The CIFS mount lives in the container namespace and does NOT survive a restart.
+    storage.json and credentials persist in a volume; this remounts without the
+    user having to reconfigure. Silent failure: does not bring down the backend
+    boot if the server is offline.
     """
     if not _can_remount():
         return
@@ -160,12 +161,13 @@ def remount_if_configured() -> None:
 
 
 def ensure_storage_mounted() -> None:
-    """Garante o CIFS montado antes de iniciar um jogo (on-demand).
+    """Ensure CIFS is mounted before starting a game (on-demand).
 
-    O mount pode cair durante o uso (Wi-Fi, timeout de inatividade). Chamado pelo
-    PlayerService.play(); se o storage é CIFS e caiu, remonta — e propaga
-    StorageConfigError (vira HTTP/erro na UI) se não conseguir, em vez de o jogo
-    falhar com 'Failed to load content' sem explicação. No-op se local ou já montado.
+    The mount can drop during use (Wi-Fi, inactivity timeout). Called by
+    PlayerService.play(); if storage is CIFS and has dropped, remounts — and
+    propagates StorageConfigError (becomes HTTP/UI error) if it can't, instead
+    of the game failing with 'Failed to load content' with no explanation. No-op
+    if local or already mounted.
     """
     if _can_remount():
         _mount_from_config(get_storage_config())

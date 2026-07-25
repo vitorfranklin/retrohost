@@ -14,6 +14,6 @@ Base = declarative_base()
 
 
 def init_db() -> None:
-    from app.models import game  # noqa: F401  (garante registro do model)
+    from app.models import game  # noqa: F401  (ensures the model is registered)
 
     Base.metadata.create_all(bind=engine)

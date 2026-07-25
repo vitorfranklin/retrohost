@@ -1,9 +1,9 @@
-"""Serviço que orquestra play/stop/status sobre um EmulatorDriver + StreamingProvider
+"""Service that orchestrates play/stop/status over an EmulatorDriver + StreamingProvider
 + InputProvider.
 
-Mantém em memória o jogo atualmente em execução (no MVP, apenas um jogo
-por vez). A API não conhece RetroArch, ffmpeg nem uinput — apenas chama este
-serviço, que por sua vez delega ao driver e aos providers configurados.
+Keeps in memory the currently running game (in the MVP, only one game at a time).
+The API does not know RetroArch, ffmpeg, or uinput — it only calls this service,
+which in turn delegates to the configured driver and providers.
 """
 import json
 import time
@@ -16,13 +16,13 @@ from app.input.base import InputProvider
 from app.models.game import Game
 from app.streaming.base import StreamingProvider
 
-# Tempo para o RetroArch abrir o FIFO e começar a escrever antes do ffmpeg
-# conectar como leitor — valor validado manualmente (scripts/stream_pipeline.sh).
+# Time for RetroArch to open the FIFO and start writing before ffmpeg
+# connects as a reader — value validated manually (scripts/stream_pipeline.sh).
 _FIFO_READY_DELAY_SECONDS = 2
 
-# play() só retorna depois que o mediamtx confirma o stream publicado, para o
-# frontend não tentar conectar via WHEP antes de haver o que consumir (a
-# publicação RTSP do ffmpeg demora mais que o tempo de abertura do FIFO).
+# play() only returns after mediamtx confirms the stream is published, so the
+# frontend does not try to connect via WHEP before there is anything to consume
+# (the RTSP publication by ffmpeg takes longer than the FIFO opening time).
 _STREAM_READY_TIMEOUT_SECONDS = 10
 _STREAM_READY_POLL_INTERVAL_SECONDS = 0.5
 
@@ -39,16 +39,16 @@ class PlayerService:
         self._current_game: Game | None = None
 
     def play(self, game: Game) -> None:
-        # Garante o storage de rede montado: o mount CIFS pode ter caído durante
-        # o uso (Wi-Fi/timeout). Remonta on-demand e, se falhar, propaga erro
-        # claro em vez de o jogo falhar com "Failed to load content" sem motivo.
+        # Ensure network storage is mounted: the CIFS mount may have dropped during
+        # use (Wi-Fi/timeout). Remounts on-demand and, if it fails, propagates a
+        # clear error instead of the game failing with "Failed to load content" for no reason.
         from app.services.storage import ensure_storage_mounted
 
         ensure_storage_mounted()
-        # input.connect() ANTES de driver.launch(): o RetroArch escaneia os
-        # dispositivos de input no startup. Sem udevd para avisar de hotplug
-        # (container), o teclado virtual precisa já existir quando o RetroArch
-        # sobe. No Pi a ordem também é segura (o teclado é criado antes do jogo).
+        # input.connect() BEFORE driver.launch(): RetroArch scans input devices
+        # at startup. Without udevd to signal hotplug (container), the virtual
+        # keyboard must already exist when RetroArch starts. On the Pi the order
+        # is also safe (the keyboard is created before the game).
         self._input.connect()
         self._driver.launch(game)
         time.sleep(_FIFO_READY_DELAY_SECONDS)
@@ -66,7 +66,7 @@ class PlayerService:
         self._streaming.stop()
         self._driver.stop()
         raise StreamNotReadyError(
-            "O stream não ficou disponível no mediamtx a tempo. Verifique se o mediamtx está rodando."
+            "The stream did not become available in mediamtx in time. Check that mediamtx is running."
         )
 
     @staticmethod
