@@ -1,11 +1,11 @@
-"""WebSocket de input remoto: navegador envia eventos de botão de gamepad,
-backend traduz para teclas no teclado virtual uinput (ver app/input/).
+"""Remote input WebSocket: the browser sends gamepad button events,
+the backend translates them into keystrokes on the virtual uinput keyboard (see app/input/).
 
-Apenas UM cliente ativo por vez — quando um novo conecta, o anterior é
-fechado com código 4000 ("controle assumido"). O frontend detecta esse
-código e volta para a idle view sem encerrar o jogo.
+Only ONE active client at a time — when a new one connects, the previous is
+closed with code 4000 ("control taken over"). The frontend detects this code
+and returns to the idle view without stopping the game.
 
-Sem autenticação — projeto pessoal de uso doméstico em LAN, único usuário.
+No authentication — personal project for home use on a LAN, single user.
 """
 import asyncio
 import json
@@ -24,7 +24,7 @@ async def input_ws(websocket: WebSocket) -> None:
     global _active_ws
     await websocket.accept()
 
-    # Fecha o cliente anterior, se houver, sinalizando que o controle foi assumido.
+    # Close the previous client, if any, signalling that control was taken over.
     previous = _active_ws
     _active_ws = websocket
     if previous is not None:

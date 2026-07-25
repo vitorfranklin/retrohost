@@ -1,16 +1,17 @@
-/* LD_PRELOAD para o RetroArch no container RetroHost.
+/* LD_PRELOAD for RetroArch inside the RetroHost container.
  *
- * Motivo: no WSL2 não há udevd, então o input via uinput/udev não funciona
- * (o libudev não enumera os devices). Este preload contorna isso criando um
- * SDL2 *virtual joystick* DENTRO do processo do RetroArch (input_joypad_driver
- * =sdl2) — o SDL2 não depende de udev. Um socket UNIX recebe comandos de botão
- * do backend (SDLGamepadProvider) e os aplica ao joystick virtual.
+ * Reason: WSL2 has no udevd, so input via uinput/udev does not work
+ * (libudev cannot enumerate devices). This preload works around that by
+ * creating an SDL2 *virtual joystick* INSIDE the RetroArch process
+ * (input_joypad_driver=sdl2) — SDL2 does not depend on udev. A UNIX socket
+ * receives button commands from the backend (SDLGamepadProvider) and applies
+ * them to the virtual joystick.
  *
- * Protocolo do socket (SOCK_DGRAM, texto): "<tipo> <indice> <valor>\n"
- *   tipo "b": botão   -> indice 0..14,  valor 0/1
- *   tipo "h": hat     -> indice 0,      valor = bitmask SDL_HAT_* (up=1 right=2
- *                                       down=4 left=8), para o d-pad
- * Path do socket: env HOMEGAMES_INPUT_SOCK (default /tmp/homegames_input.sock).
+ * Socket protocol (SOCK_DGRAM, text): "<type> <index> <value>\n"
+ *   type "b": button  -> index 0..14,  value 0/1
+ *   type "h": hat     -> index 0,      value = SDL_HAT_* bitmask (up=1 right=2
+ *                                      down=4 left=8), for the d-pad
+ * Socket path: env HOMEGAMES_INPUT_SOCK (default /tmp/homegames_input.sock).
  *
  * Compilar: gcc -shared -fPIC -o sdl_input_preload.so sdl_input_preload.c -ldl -lpthread
  */
@@ -51,17 +52,17 @@ static void *listener(void *arg) {
     p_setbtn = dlsym(handle, "SDL_JoystickSetVirtualButton");
     p_sethat = dlsym(handle, "SDL_JoystickSetVirtualHat");
     if (!attach || !open || !p_setbtn) {
-        fprintf(stderr, "[hg-preload] simbolos SDL virtual joystick ausentes\n");
+        fprintf(stderr, "[hg-preload] SDL virtual joystick symbols missing\n");
         return NULL;
     }
-    /* 6 eixos, 15 botões, 1 hat — gamepad padrão */
+    /* 6 axes, 15 buttons, 1 hat — standard gamepad */
     int idx = attach(SDL_JOYSTICK_TYPE_GAMECONTROLLER, 6, 15, 1);
     if (idx < 0) {
-        fprintf(stderr, "[hg-preload] AttachVirtual falhou: %s\n", geterr ? geterr() : "?");
+        fprintf(stderr, "[hg-preload] AttachVirtual failed: %s\n", geterr ? geterr() : "?");
         return NULL;
     }
     g_joy = open(idx);
-    fprintf(stderr, "[hg-preload] virtual joystick criado (idx=%d)\n", idx);
+    fprintf(stderr, "[hg-preload] virtual joystick created (idx=%d)\n", idx);
 
     int fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (fd < 0) { perror("[hg-preload] socket"); return NULL; }
@@ -74,7 +75,7 @@ static void *listener(void *arg) {
         perror("[hg-preload] bind");
         return NULL;
     }
-    fprintf(stderr, "[hg-preload] ouvindo input em %s\n", path);
+    fprintf(stderr, "[hg-preload] listening for input on %s\n", path);
 
     char buf[64];
     for (;;) {
@@ -101,7 +102,7 @@ int SDL_Init(unsigned int flags) {
         pthread_create(&t, NULL, listener, handle);
         pthread_detach(t);
     } else {
-        fprintf(stderr, "[hg-preload] dlopen libSDL2 falhou\n");
+        fprintf(stderr, "[hg-preload] dlopen libSDL2 failed\n");
     }
     return rc;
 }

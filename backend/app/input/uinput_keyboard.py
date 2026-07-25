@@ -1,18 +1,18 @@
-"""Teclado virtual via Linux uinput, usado para traduzir estado de gamepad do
-navegador em teclas que o RetroArch lê via input_driver=udev (como se fosse
-um teclado USB físico plugado no Pi).
+"""Virtual keyboard via Linux uinput, used to translate browser gamepad state
+into keys that RetroArch reads via input_driver=udev (as if it were a physical
+USB keyboard plugged into the Pi).
 
-Requer: módulo uinput carregado, /dev/uinput acessível pelo usuário do
-serviço (ver scripts/setup_input.sh) e o pacote de sistema python3-evdev
-(NÃO via pip — ver backend/requirements.txt; recompilar evdev no Pi 3
-teria o mesmo custo de build que motivou abandonar uvicorn[standard]).
+Requires: uinput module loaded, /dev/uinput accessible by the service user
+(see scripts/setup_input.sh) and the system package python3-evdev
+(NOT via pip — see backend/requirements.txt; recompiling evdev on the Pi 3
+would have the same build cost that led us to abandon uvicorn[standard]).
 
-No container (WSL2) não há udevd para criar o /dev/input/eventN quando o
-uinput registra o device — sem esse node, nem o evdev relê as capabilities
-nem o RetroArch (input_driver=udev) enxerga o teclado. Com
-HOMEGAMES_MKNOD_INPUT=1, criamos o node manualmente via mknod lendo o
-major:minor de /sys (ver _ensure_event_node). No Pi isso fica desligado
-(o udev do sistema já cria o node).
+In the container (WSL2) there is no udevd to create /dev/input/eventN when
+uinput registers the device — without that node, evdev cannot re-read the
+capabilities and RetroArch (input_driver=udev) cannot see the keyboard. With
+HOMEGAMES_MKNOD_INPUT=1, we create the node manually via mknod by reading the
+major:minor from /sys (see _ensure_event_node). On the Pi this is disabled
+(the system udev already creates the node).
 """
 import os
 import stat
@@ -23,7 +23,7 @@ from app.input.keymap import EVDEV_KEYCODES
 
 try:
     import evdev
-except ImportError:  # ambiente sem python3-evdev (ex: dev no Windows)
+except ImportError:  # environment without python3-evdev (e.g. dev on Windows)
     evdev = None
 
 
@@ -42,7 +42,7 @@ class UInputKeyboardProvider(InputProvider):
             return
         if evdev is None:
             raise UInputNotAvailableError(
-                "python3-evdev não está disponível. Rode scripts/setup_input.sh no Pi."
+                "python3-evdev is not available. Run scripts/setup_input.sh on the Pi."
             )
         capabilities = {evdev.ecodes.EV_KEY: list(EVDEV_KEYCODES.values())}
         self._device = evdev.UInput(capabilities, name=self._device_name)
@@ -50,15 +50,15 @@ class UInputKeyboardProvider(InputProvider):
             self._ensure_event_node()
 
     def _ensure_event_node(self) -> None:
-        """Cria /dev/input/eventN para o device recém-registrado, se faltar.
+        """Create /dev/input/eventN for the newly registered device, if missing.
 
-        Em ambientes sem udevd (container WSL2), o uinput registra o device em
-        /sys/devices/virtual/input/inputN/eventN mas nenhum node aparece em
-        /dev/input. Lemos o major:minor do sysfs e criamos o node via mknod.
-        Best-effort: qualquer falha é ignorada (o RetroArch dará o erro claro).
+        In environments without udevd (container WSL2), uinput registers the device in
+        /sys/devices/virtual/input/inputN/eventN but no node appears in
+        /dev/input. We read the major:minor from sysfs and create the node via mknod.
+        Best-effort: any failure is silently ignored (RetroArch will give a clear error).
         """
-        # Varremos o sysfs procurando o input com o nosso device_name e criamos
-        # o node /dev/input/eventN correspondente.
+        # We scan sysfs looking for the input with our device_name and create
+        # the corresponding /dev/input/eventN node.
         try:
             os.makedirs("/dev/input", exist_ok=True)
             base = "/sys/devices/virtual/input"

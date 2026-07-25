@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Pipeline manual de streaming: RetroArch (headless) -> FIFO -> ffmpeg
-# (encoder de hardware h264_v4l2m2m + áudio opus) -> RTSP -> mediamtx (WHEP/WebRTC).
+# Manual streaming pipeline: RetroArch (headless) -> FIFO -> ffmpeg
+# (h264_v4l2m2m hardware encoder + opus audio) -> RTSP -> mediamtx (WHEP/WebRTC).
 #
-# Uso: ./stream_pipeline.sh <core.so> <launch_file>
-# Exemplo:
+# Usage: ./stream_pipeline.sh <core.so> <launch_file>
+# Example:
 #   ./stream_pipeline.sh \
 #     /home/YOUR_USER/retrohost/emulator/cores/pcsx_rearmed_libretro.so \
 #     "/home/YOUR_USER/retrohost/emulator/roms/ps1/Dino Crisis (v1.1)/Dino Crisis (v1.1).cue"
 #
-# Pré-requisitos: scripts/setup_streaming.sh já executado (e Pi rebotado),
-# mediamtx já rodando (bin/mediamtx config/mediamtx.yml).
+# Prerequisites: scripts/setup_streaming.sh already run (and Pi rebooted),
+# mediamtx already running (bin/mediamtx config/mediamtx.yml).
 #
-# Nota sobre codec de áudio: o RetroArch grava PCM raw (pcm_s16le) num único
-# FIFO em container Matroska junto com o vídeo raw (ver
-# config/retroarch/record_raw_av.cfg). O ffmpeg codifica esse áudio em Opus
-# — não AAC: o mediamtx descarta trilhas AAC ao publicar via WHEP porque
-# navegadores não suportam AAC nativamente em WebRTC (apenas Opus/G.711).
+# Note on audio codec: RetroArch writes raw PCM (pcm_s16le) into a single
+# FIFO in a Matroska container alongside raw video (see
+# config/retroarch/record_raw_av.cfg). ffmpeg encodes that audio as Opus
+# — not AAC: mediamtx drops AAC tracks when publishing via WHEP because
+# browsers do not natively support AAC in WebRTC (only Opus/G.711).
 #
-# -g 15 (GOP curto): recupera de perda de pacote mais rápido (era 30,
-# causava freezes visíveis). -pkt_size 1200: evita que o mediamtx precise
-# remontar pacotes RTP maiores que o MTU (1460 > 1440 observado nos logs).
+# -g 15 (short GOP): recovers from packet loss faster (was 30, causing
+# visible freezes). -pkt_size 1200: prevents mediamtx from having to
+# reassemble RTP packets larger than the MTU (1460 > 1440 observed in logs).
 set -euo pipefail
 
 CORE="${1:?uso: stream_pipeline.sh <core.so> <launch_file>}"
@@ -33,7 +33,7 @@ rm -f "$FIFO"
 mkfifo "$FIFO"
 
 cleanup() {
-    echo "Encerrando pipeline..."
+    echo "Shutting down pipeline..."
     kill "$RETROARCH_PID" "$FFMPEG_PID" 2>/dev/null || true
     wait 2>/dev/null || true
     rm -f "$FIFO"
@@ -53,5 +53,5 @@ ffmpeg -y -re -i "$FIFO" \
 FFMPEG_PID=$!
 
 echo "RetroArch PID=$RETROARCH_PID, ffmpeg PID=$FFMPEG_PID"
-echo "Stream disponível via WHEP em http://<pi>:8889/live/whep"
+echo "Stream available via WHEP at http://<pi>:8889/live/whep"
 wait "$RETROARCH_PID" "$FFMPEG_PID"

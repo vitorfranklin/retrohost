@@ -1,12 +1,12 @@
-"""InputProvider que injeta input num joystick virtual SDL2 vivendo dentro do
-processo do RetroArch (via container/sdl_input_preload.c), por um socket UNIX.
+"""InputProvider that injects input into a virtual SDL2 joystick living inside
+the RetroArch process (via container/sdl_input_preload.c), over a UNIX socket.
 
-Usado no container (especialmente WSL2), onde o caminho uinput/udev não funciona
-por falta de udevd. Selecionado por settings.INPUT_PROVIDER=sdl (env
-HOMEGAMES_INPUT_PROVIDER). O Pi continua usando UInputKeyboardProvider.
+Used in the container (especially WSL2), where the uinput/udev path does not
+work due to missing udevd. Selected by settings.INPUT_PROVIDER=sdl (env
+HOMEGAMES_INPUT_PROVIDER). The Pi continues to use UInputKeyboardProvider.
 
-Protocolo (igual ao do preload): datagramas de texto "b <btn> <0|1>".
-O d-pad é exposto como botões (b11-b14), então tudo são botões simples.
+Protocol (same as the preload): text datagrams "b <btn> <0|1>".
+The d-pad is exposed as buttons (b11-b14), so everything is a simple button.
 """
 import socket
 
@@ -50,7 +50,7 @@ class SDLGamepadProvider(InputProvider):
         try:
             self._sock.sendto(f"b {index} {value}".encode(), self._sock_path)
         except OSError:
-            # o preload pode ainda não ter criado o socket (jogo iniciando);
-            # input perdido é tolerável (o usuário repete a tecla).
+            # the preload may not have created the socket yet (game starting);
+            # lost input is acceptable (the user can repeat the key press).
             return False
         return True

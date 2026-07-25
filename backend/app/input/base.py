@@ -1,8 +1,8 @@
-"""Interface de entrada remota (gamepad do navegador -> dispositivo de input no Pi).
+"""Remote input interface (browser gamepad -> input device on the Pi).
 
-Implementação concreta: UInputKeyboardProvider (app/input/uinput_keyboard.py),
-que expõe um teclado virtual via /dev/uinput, lido pelo RetroArch
-(input_driver=udev) como se fosse um teclado USB físico.
+Concrete implementation: UInputKeyboardProvider (app/input/uinput_keyboard.py),
+which exposes a virtual keyboard via /dev/uinput, read by RetroArch
+(input_driver=udev) as if it were a physical USB keyboard.
 """
 from abc import ABC, abstractmethod
 
@@ -10,20 +10,20 @@ from abc import ABC, abstractmethod
 class InputProvider(ABC):
     @abstractmethod
     def connect(self) -> None:
-        """Cria/registra o dispositivo de input. Idempotente se já conectado."""
+        """Create/register the input device. Idempotent if already connected."""
 
     @abstractmethod
     def disconnect(self) -> None:
-        """Remove o dispositivo de input, se existir. Idempotente."""
+        """Remove the input device, if it exists. Idempotent."""
 
     @abstractmethod
     def press(self, key: str) -> None:
-        """Sinaliza tecla pressionada. `key` é um nome lógico (ver keymap.py)."""
+        """Signal key pressed. `key` is a logical name (see keymap.py)."""
 
     @abstractmethod
     def release(self, key: str) -> None:
-        """Sinaliza tecla solta."""
+        """Signal key released."""
 
     @abstractmethod
     def release_all(self) -> None:
-        """Solta todas as teclas atualmente pressionadas (ex: desconexão abrupta)."""
+        """Release all currently pressed keys (e.g. on abrupt disconnect)."""

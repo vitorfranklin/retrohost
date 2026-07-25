@@ -1,8 +1,8 @@
-"""Configuração central do RetroHost.
+"""Central configuration for RetroHost.
 
-Todos os caminhos derivam de PROJECT_ROOT, que por padrão assume o layout
-padrão do Raspberry Pi (/home/YOUR_USER/retrohost). Pode ser sobrescrito pela
-variável de ambiente HOMEGAMES_ROOT para permitir execução local (Windows/dev).
+All paths derive from PROJECT_ROOT, which by default assumes the standard
+Raspberry Pi layout (/home/YOUR_USER/retrohost). Can be overridden by the
+HOMEGAMES_ROOT environment variable to allow local execution (Windows/dev).
 """
 from __future__ import annotations
 
@@ -34,70 +34,71 @@ class Settings:
 
     CORES_CONFIG_FILE: Path = CONFIG_DIR / "cores.json"
     SETTINGS_CONFIG_FILE: Path = CONFIG_DIR / "settings.json"
-    # storage.json: default em config/ (Pi). No container, HOMEGAMES_STORAGE_CONFIG
-    # aponta para /data (volume) para sobreviver a restarts do container, e o
-    # entrypoint remonta o CIFS no boot se mode=cifs. Ver storage.py / entrypoint.
+    # storage.json: default in config/ (Pi). In the container, HOMEGAMES_STORAGE_CONFIG
+    # points to /data (volume) to survive container restarts, and the entrypoint
+    # remounts CIFS on boot if mode=cifs. See storage.py / entrypoint.
     STORAGE_CONFIG_FILE: Path = Path(
         os.environ.get("HOMEGAMES_STORAGE_CONFIG", str(CONFIG_DIR / "storage.json"))
     )
     RECORDCONFIG_PATH: Path = CONFIG_DIR / "retroarch" / "record_raw_av.cfg"
 
-    # System directory do RetroArch (onde ficam BIOS etc). Vazio = comportamento
-    # padrão do Pi (RetroArch usa o seu próprio default). No container o
-    # entrypoint exporta HOMEGAMES_SYSTEM_DIR e o driver copia a BIOS de PS1 para
-    # lá no launch (o core Beetle PSX exige BIOS). Ver drivers/retroarch.py.
+    # System directory for RetroArch (where BIOS files etc. live). Empty = Pi's
+    # default behavior (RetroArch uses its own default). In the container the
+    # entrypoint exports HOMEGAMES_SYSTEM_DIR and the driver copies the PS1 BIOS
+    # there at launch (the Beetle PSX core requires a BIOS). See drivers/retroarch.py.
     SYSTEM_DIR: str = os.environ.get("HOMEGAMES_SYSTEM_DIR", "")
 
-    # No container WSL2 não há udevd para criar /dev/input/eventN quando o uinput
-    # registra o teclado virtual. =1 faz o UInputKeyboardProvider criar o node via
-    # mknod (lendo major:minor do sysfs). No Pi fica 0 (udev do sistema já cria).
+    # On container WSL2 there is no udevd to create /dev/input/eventN when uinput
+    # registers the virtual keyboard. =1 makes UInputKeyboardProvider create the node
+    # via mknod (reading major:minor from sysfs). On the Pi this stays 0 (the system
+    # udev already creates it).
     MKNOD_INPUT: bool = os.environ.get("HOMEGAMES_MKNOD_INPUT", "0") == "1"
 
-    # Provider de input: "uinput" (Pi, teclado virtual via udev) ou "sdl"
-    # (container/WSL2, joystick virtual SDL2 dentro do RetroArch via LD_PRELOAD —
-    # ver container/sdl_input_preload.c e app/input/sdl_gamepad.py).
+    # Input provider: "uinput" (Pi, virtual keyboard via udev) or "sdl"
+    # (container/WSL2, virtual SDL2 joystick inside RetroArch via LD_PRELOAD —
+    # see container/sdl_input_preload.c and app/input/sdl_gamepad.py).
     INPUT_PROVIDER: str = os.environ.get("HOMEGAMES_INPUT_PROVIDER", "uinput")
     INPUT_SOCK_PATH: str = os.environ.get("HOMEGAMES_INPUT_SOCK", "/tmp/homegames_input.sock")
-    # Caminho do LD_PRELOAD do input SDL (vazio = não usar). No container o
-    # entrypoint/Dockerfile aponta para o .so compilado; o RetroArchDriver
-    # injeta no ambiente do RetroArch quando INPUT_PROVIDER=sdl.
+    # Path to the SDL input LD_PRELOAD (empty = don't use). In the container the
+    # entrypoint/Dockerfile points to the compiled .so; RetroArchDriver injects
+    # it into the RetroArch environment when INPUT_PROVIDER=sdl.
     INPUT_SDL_PRELOAD: str = os.environ.get("HOMEGAMES_SDL_PRELOAD", "")
 
-    # Storage de ROMs via rede (CIFS/Samba) - ver app/services/storage.py.
-    # CIFS_CREDENTIALS_PATH: no container vai para /data (volume) via env, para o
-    # entrypoint conseguir remontar no boot. No Pi, fica em /etc/samba (root-only).
+    # ROM storage via network (CIFS/Samba) — see app/services/storage.py.
+    # CIFS_CREDENTIALS_PATH: in the container it goes to /data (volume) via env, so
+    # the entrypoint can remount on boot. On the Pi, it stays in /etc/samba (root-only).
     CIFS_CREDENTIALS_PATH: Path = Path(
         os.environ.get("HOMEGAMES_CIFS_CREDENTIALS", "/etc/samba/homegames-credentials")
     )
     CIFS_MOUNT_POINT: Path = Path("/mnt/homegames-roms")
-    # Versão do protocolo SMB para o mount -t cifs. Default 3.0 (moderno, seguro,
-    # funciona em kernels novos como o do WSL2). Kernels antigos/servidores que só
-    # falam SMB1 podem precisar de 2.0/1.0 via HOMEGAMES_CIFS_VERS. O kernel WSL2
-    # (6.6) rejeita vers=2.0 com mount error(22) para alguns servidores.
+    # SMB protocol version for mount -t cifs. Default 3.0 (modern, secure,
+    # works on newer kernels like WSL2). Older kernels/servers that only
+    # speak SMB1 may need 2.0/1.0 via HOMEGAMES_CIFS_VERS. The WSL2 kernel
+    # (6.6) rejects vers=2.0 with mount error(22) for some servers.
     CIFS_VERS: str = os.environ.get("HOMEGAMES_CIFS_VERS", "3.0")
 
     STREAMING_FIFO_PATH: Path = Path("/tmp/homegames_av.fifo")
     MEDIAMTX_RTSP_URL: str = "rtsp://127.0.0.1:8554/live"
-    # Encoder de vídeo do ffmpeg. Default h264_v4l2m2m (encoder de hardware do
-    # Raspberry Pi). O container x86 seta HOMEGAMES_ENCODER=auto, que auto-detecta
-    # o melhor encoder disponível (nvenc > qsv > vaapi > libx264) — imagem
-    # agnóstica de GPU. Um valor explícito força aquele encoder (override/debug).
-    # Ver app/streaming/encoder_detect.py e encoder_profiles.py.
+    # ffmpeg video encoder. Default h264_v4l2m2m (Raspberry Pi hardware encoder).
+    # The x86 container sets HOMEGAMES_ENCODER=auto, which auto-detects the best
+    # available encoder (nvenc > qsv > vaapi > libx264) — GPU-agnostic image.
+    # An explicit value forces that encoder (override/debug).
+    # See app/streaming/encoder_detect.py and encoder_profiles.py.
     VIDEO_ENCODER: str = os.environ.get("HOMEGAMES_ENCODER", "h264_v4l2m2m")
-    # Render node DRM para VAAPI/QSV (GPU Intel/AMD). Default /dev/dri/renderD128;
-    # máquinas com múltiplas GPUs podem precisar de renderD129 etc.
+    # DRM render node for VAAPI/QSV (Intel/AMD GPU). Default /dev/dri/renderD128;
+    # machines with multiple GPUs may need renderD129 etc.
     RENDER_NODE: str = os.environ.get("HOMEGAMES_RENDER_NODE", "/dev/dri/renderD128")
     MEDIAMTX_WHEP_PORT: int = 8889
     MEDIAMTX_WHEP_PATH: str = "/live/whep"
     MEDIAMTX_API_URL: str = "http://127.0.0.1:9997/v3/paths/get/live"
 
-    # Default: backend/homegames.db (layout do Pi). No container, HOMEGAMES_DB_PATH
-    # aponta para um diretório de dados montado como volume, separado do código —
-    # ver scripts/docker-entrypoint.sh / docker-run.sh.
+    # Default: backend/homegames.db (Pi layout). In the container, HOMEGAMES_DB_PATH
+    # points to a mounted data directory as a volume, separate from the code —
+    # see scripts/docker-entrypoint.sh / docker-run.sh.
     DATABASE_PATH: Path = Path(os.environ.get("HOMEGAMES_DB_PATH", str(BACKEND_DIR / "homegames.db")))
     DATABASE_URL: str = f"sqlite:///{DATABASE_PATH}"
 
-    # Extensões de ROM válidas (jogo "jogável") por console.
+    # Valid ROM extensions (playable game) per console.
     VALID_ROM_EXTENSIONS: dict[str, set[str]] = {
         "ps1": {".cue", ".chd", ".pbp"},
         "snes": {".sfc", ".smc"},

@@ -1,31 +1,31 @@
-"""Streaming via ffmpeg: lê o FIFO onde o RetroArchDriver grava vídeo/áudio
-raw e publica H.264 + Opus via RTSP para o mediamtx, que expõe o stream ao
-navegador via WHEP/WebRTC.
+"""Streaming via ffmpeg: reads the FIFO where RetroArchDriver writes raw
+video/audio and publishes H.264 + Opus via RTSP to mediamtx, which exposes
+the stream to the browser via WHEP/WebRTC.
 
-O encoder de vídeo é selecionável por settings.VIDEO_ENCODER (env
-HOMEGAMES_ENCODER). Valores:
-  - "auto":        auto-detecta o melhor encoder disponível (container agnóstico
-                   de GPU: nvenc > qsv > vaapi > libx264). Ver encoder_detect.py.
-  - h264_nvenc:    GPU NVIDIA.
+The video encoder is selectable via settings.VIDEO_ENCODER (env
+HOMEGAMES_ENCODER). Values:
+  - "auto":        auto-detects the best available encoder (GPU-agnostic
+                   container: nvenc > qsv > vaapi > libx264). See encoder_detect.py.
+  - h264_nvenc:    NVIDIA GPU.
   - h264_qsv:      Intel QuickSync.
-  - h264_vaapi:    GPU Intel/AMD via VAAPI.
-  - libx264:       software (CPU, funciona em qualquer máquina).
-  - h264_v4l2m2m:  encoder de hardware do Raspberry Pi (default no Pi).
-Os args de cada encoder vivem em encoder_profiles.py (EncoderProfile),
-compartilhados com o detector para o probe testar o caminho real.
+  - h264_vaapi:    Intel/AMD GPU via VAAPI.
+  - libx264:       software (CPU, works on any machine).
+  - h264_v4l2m2m:  Raspberry Pi hardware encoder (Pi default).
+The args for each encoder live in encoder_profiles.py (EncoderProfile),
+shared with the detector so the probe tests the real path.
 
-Nota: tentamos migrar para WHIP (-f whip) para cortar uma camada de remux,
-mas o build do ffmpeg 7.1.5 no Raspbian não inclui o muxer WHIP
-('Requested output format whip is not known'). Ficou em RTSP.
+Note: we tried migrating to WHIP (-f whip) to cut one remux layer,
+but the ffmpeg 7.1.5 build on Raspbian does not include the WHIP muxer
+('Requested output format whip is not known'). Stayed on RTSP.
 
--fps_mode passthrough: o RetroArch grava ~30fps de conteúdo real mas
-declara o stream como 60fps, fazendo o ffmpeg DUPLICAR ~41 frames/s e
-rodar um filtro de rate conversion (visto como 'Clipping in rate
-conversion' no -loglevel debug) — buffering e CPU desnecessários.
-passthrough repassa os frames como vêm, sem duplicar nem converter.
+-fps_mode passthrough: RetroArch records ~30fps of real content but
+declares the stream as 60fps, causing ffmpeg to DUPLICATE ~41 frames/s and
+run a rate conversion filter (seen as 'Clipping in rate conversion'
+in -loglevel debug) — unnecessary buffering and CPU usage.
+passthrough forwards frames as they come, without duplicating or converting.
 
-Parâmetros validados manualmente no Raspberry Pi 3 real —
-ver scripts/stream_pipeline.sh e o histórico de tuning de performance.
+Manually validated parameters on a real Raspberry Pi 3 —
+see scripts/stream_pipeline.sh and the performance tuning history.
 """
 import subprocess
 from typing import Any

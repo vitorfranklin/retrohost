@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Configura o Raspberry Pi para montar um storage de ROMs via rede
-# (CIFS/Samba), usado pelo servico backend/app/services/storage.py para
-# trocar a fonte de ROMs sem reiniciar o backend.
+# Configure the Raspberry Pi to mount a ROM storage via network
+# (CIFS/Samba), used by the service backend/app/services/storage.py to
+# switch the ROM source without restarting the backend.
 #
-# Idempotente: pode ser executado mais de uma vez sem duplicar configuracao.
+# Idempotent: can be run more than once without duplicating configuration.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,31 +12,31 @@ SUDOERS_SRC="$PROJECT_ROOT/config/sudoers/homegames-mount"
 SUDOERS_DEST="/etc/sudoers.d/homegames-mount"
 MOUNT_POINT="/mnt/homegames-roms"
 
-echo "==> Instalando cifs-utils via apt"
+echo "==> Installing cifs-utils via apt"
 sudo apt-get install -y cifs-utils
 
-echo "==> Garantindo ponto de montagem $MOUNT_POINT"
+echo "==> Ensuring mount point $MOUNT_POINT exists"
 sudo mkdir -p "$MOUNT_POINT"
 
-echo "==> Garantindo diretorio /etc/samba (destino do arquivo de credenciais CIFS)"
+echo "==> Ensuring /etc/samba directory exists (destination for CIFS credentials file)"
 sudo mkdir -p /etc/samba
 
-echo "==> Instalando regra sudoers (mount/umount com escopo minimo)"
+echo "==> Installing sudoers rule (mount/umount with minimal scope)"
 if [[ ! -f "$SUDOERS_DEST" ]] || ! diff -q "$SUDOERS_SRC" "$SUDOERS_DEST" >/dev/null 2>&1; then
     TMP_SUDOERS="$(mktemp)"
     cp "$SUDOERS_SRC" "$TMP_SUDOERS"
     if sudo visudo -c -f "$TMP_SUDOERS" >/dev/null; then
         sudo cp "$TMP_SUDOERS" "$SUDOERS_DEST"
         sudo chmod 440 "$SUDOERS_DEST"
-        echo "    Regra instalada e validada."
+        echo "    Rule installed and validated."
     else
-        echo "    ERRO: regra sudoers invalida, nao aplicada. Veja $TMP_SUDOERS"
+        echo "    ERROR: invalid sudoers rule, not applied. See $TMP_SUDOERS"
         rm -f "$TMP_SUDOERS"
         exit 1
     fi
     rm -f "$TMP_SUDOERS"
 else
-    echo "    Ja instalada, nada a fazer."
+    echo "    Already installed, nothing to do."
 fi
 
-echo "==> Concluido. Teste: sudo -n mount -t cifs --help > /dev/null && echo OK"
+echo "==> Done. Test: sudo -n mount -t cifs --help > /dev/null && echo OK"

@@ -36,7 +36,7 @@ def list_games(db: Session = Depends(get_db)) -> list[Game]:
 def get_game(game_id: int, db: Session = Depends(get_db)) -> Game:
     game = db.get(Game, game_id)
     if game is None:
-        raise HTTPException(status_code=404, detail="Jogo não encontrado")
+        raise HTTPException(status_code=404, detail="Game not found")
     return game
 
 
@@ -71,7 +71,7 @@ def use_cifs_storage(request: SetCifsStorageRequest, db: Session = Depends(get_d
 def play(request: PlayRequest, db: Session = Depends(get_db)) -> StatusResponse:
     game = db.get(Game, request.game_id)
     if game is None:
-        raise HTTPException(status_code=404, detail="Jogo não encontrado")
+        raise HTTPException(status_code=404, detail="Game not found")
 
     player = get_player_service()
     try:

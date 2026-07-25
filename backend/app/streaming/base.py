@@ -1,4 +1,4 @@
-"""Interface de streaming de vídeo/áudio do emulador para o navegador."""
+"""Video/audio streaming interface from the emulator to the browser."""
 from abc import ABC, abstractmethod
 from typing import Any
 
