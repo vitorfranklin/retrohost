@@ -1,4 +1,5 @@
 {
   "ps1":  "/home/YOUR_USER/retrohost/emulator/cores/pcsx_rearmed_libretro.so",
-  "snes": "/usr/lib/arm-linux-gnueabihf/libretro/bsnes_mercury_performance_libretro.so"
+  "snes": "/usr/lib/arm-linux-gnueabihf/libretro/bsnes_mercury_performance_libretro.so",
+  "ps2":  "/home/YOUR_USER/retrohost/emulator/cores/pcsx2_libretro.so"
 }

@@ -151,6 +151,33 @@ RETROHOST_WEBRTC_HOST=<YOUR_LAN_IP> docker compose up -d
 
 > `HOMEGAMES_WEBRTC_HOST` must be the LAN IP of the host machine (e.g. `192.168.1.100`). Without it, WebRTC ICE candidates will advertise the container's internal IP (`172.17.x.x`) and video will not reach other devices on your network.
 
+#### Windows Firewall
+
+On Windows, Docker Desktop can publish the container ports while Windows Firewall
+still blocks devices on the LAN. The following inbound rules are required for the
+complete RetroHost experience:
+
+| Rule | Protocol | Local port | Purpose |
+| --- | --- | --- | --- |
+| `RetroHost Web UI (LAN)` | TCP | `8000` | Web interface, API, and input WebSocket |
+| `RetroHost WebRTC HTTP (LAN)` | TCP | `8889` | WebRTC/WHEP signaling |
+| `RetroHost RTSP (LAN)` | TCP | `8554` | RTSP stream transport |
+| `RetroHost WebRTC UDP (LAN)` | UDP | `8189` | WebRTC/ICE media |
+
+Open PowerShell as Administrator and create the rules with:
+
+```powershell
+New-NetFirewallRule -DisplayName 'RetroHost Web UI (LAN)' -Direction Inbound -Action Allow -Profile Private -Protocol TCP -LocalPort 8000 -RemoteAddress LocalSubnet
+New-NetFirewallRule -DisplayName 'RetroHost WebRTC HTTP (LAN)' -Direction Inbound -Action Allow -Profile Private -Protocol TCP -LocalPort 8889 -RemoteAddress LocalSubnet
+New-NetFirewallRule -DisplayName 'RetroHost RTSP (LAN)' -Direction Inbound -Action Allow -Profile Private -Protocol TCP -LocalPort 8554 -RemoteAddress LocalSubnet
+New-NetFirewallRule -DisplayName 'RetroHost WebRTC UDP (LAN)' -Direction Inbound -Action Allow -Profile Private -Protocol UDP -LocalPort 8189 -RemoteAddress LocalSubnet
+```
+
+These rules apply only when the Windows network profile is **Private** and accept
+traffic only from `LocalSubnet`; they do not expose RetroHost directly to the
+internet. Confirm that the active network uses the Private profile with
+`Get-NetConnectionProfile`.
+
 ### 3. Configure storage and play
 
 Open `http://<YOUR_LAN_IP>:8000` in your browser. Click **Configure storage** to point RetroHost to your ROMs (local volume mount or CIFS/Samba network share), then **Scan library**, then click **Play** on any game.

@@ -14,6 +14,11 @@ name: retrohost
 #
 # Example with NVIDIA GPU:
 #   RETROHOST_WEBRTC_HOST=192.168.1.100 RETROHOST_GPU=nvidia docker compose up -d
+#
+# PS2 support (experimental, branch poc/ps2-support-headless-gl — see
+# docs/ps2-poc.md): off by default (extra ~150MB of X11/Mesa deps + a
+# nightly, unpinned core). Enable at build time:
+#   docker compose build --build-arg INCLUDE_PS2=true
 
 services:
   retrohost:

@@ -38,7 +38,7 @@ AUDIO_DRIVER="${HOMEGAMES_AUDIO_DRIVER:-pulse}"
 # config_save_on_exit=true, overwrites the cfg with defaults (without video_driver=null),
 # which breaks the next headless run. config_save_on_exit="false" below
 # prevents this, but regenerating at each boot guarantees a clean state.
-echo "==> Gerando retroarch.cfg headless em $RETROARCH_CFG"
+echo "==> Generating headless retroarch.cfg at $RETROARCH_CFG"
 mkdir -p "$(dirname "$RETROARCH_CFG")" "$RETROARCH_SYSTEM_DIR"
 # Input driver: "sdl2" in the container (virtual SDL joystick via LD_PRELOAD,
 # does not depend on udevd which WSL2 lacks) or "udev" (Pi, uinput keyboard).
@@ -94,6 +94,10 @@ if [[ ! -f "$CORES_JSON" ]]; then
     echo "==> Generating default cores.json from $LIBRETRO_DIR"
     PS1_CORE="$LIBRETRO_DIR/mednafen_psx_libretro.so"
     SNES_CORE="$LIBRETRO_DIR/snes9x_libretro.so"
+    # PS2 core is not installed by default (INCLUDE_PS2 build arg, see Dockerfile) —
+    # only picked up here if present, same "no-op unless the file exists" pattern
+    # as the other cores.
+    PS2_CORE="/app/cores/pcsx2_libretro.so"
     {
         echo "{"
         first=1
@@ -107,6 +111,7 @@ if [[ ! -f "$CORES_JSON" ]]; then
         }
         add_core "ps1" "$PS1_CORE"
         add_core "snes" "$SNES_CORE"
+        add_core "ps2" "$PS2_CORE"
         echo ""
         echo "}"
     } > "$CORES_JSON"
@@ -114,6 +119,25 @@ if [[ ! -f "$CORES_JSON" ]]; then
     cat "$CORES_JSON"
 else
     echo "==> cores.json already present (mounted or from a previous build), keeping."
+fi
+
+# ---------------------------------------------------------------------------
+# 2b. Xvfb for PS2 (only if a ps2 core is configured)
+# ---------------------------------------------------------------------------
+# pcsx2_libretro is RETRO_HW_RENDER — it needs a real OpenGL context, unlike
+# every other core here (video_driver=null suffices for them). RetroArchDriver
+# overrides video_driver=gl/video_context_driver=x11 per-launch for ps2 (see
+# _VIDEO_PROFILES in backend/app/drivers/retroarch.py) and expects a real X
+# server to connect to at HOMEGAMES_X_DISPLAY (default :99) — see docs/ps2-poc.md.
+# Only started when ps2 is actually configured, so hosts without PS2 in their
+# library don't pay for an idle Xvfb process.
+if grep -q '"ps2"' "$CORES_JSON" 2>/dev/null; then
+    export HOMEGAMES_X_DISPLAY="${HOMEGAMES_X_DISPLAY:-:99}"
+    echo "==> ps2 core configured — starting Xvfb on $HOMEGAMES_X_DISPLAY"
+    Xvfb "$HOMEGAMES_X_DISPLAY" -screen 0 1280x720x24 -nolisten tcp &
+    XVFB_PID=$!
+else
+    XVFB_PID=""
 fi
 
 # ---------------------------------------------------------------------------
@@ -125,7 +149,7 @@ fi
 # forward. Works on WSL2 / any container without /dev/snd.
 PULSE_PID=""
 if [[ "$AUDIO_DRIVER" == "pulse" ]]; then
-    echo "==> Subindo PulseAudio (null-sink) como clock de áudio"
+    echo "==> Starting PulseAudio (null-sink) as the audio clock"
     # User mode (not --system, which has a restrictive ACL that gives 'Access denied'
     # in pactl). Writable HOME/PULSE_RUNTIME_PATH allow running as root.
     # -n ignores the default config and loads only the modules we need.
@@ -170,6 +194,10 @@ cleanup() {
     fi
     [[ -n "$PULSE_PID" ]] && kill "$PULSE_PID" 2>/dev/null || true
     pulseaudio --kill 2>/dev/null || true
+    if [[ -n "$XVFB_PID" ]] && kill -0 "$XVFB_PID" 2>/dev/null; then
+        kill "$XVFB_PID" 2>/dev/null || true
+        wait "$XVFB_PID" 2>/dev/null || true
+    fi
     exit 0
 }
 trap cleanup SIGTERM SIGINT
@@ -196,7 +224,7 @@ python -c "from app.services.storage import remount_if_configured; remount_if_co
 # whether the GPU was detected or fell back to CPU. The result is cached in the
 # process; uvicorn (same module) reuses it.
 if [[ "${HOMEGAMES_ENCODER:-}" == "auto" ]]; then
-    echo "==> Detectando encoder de vídeo (nvenc > qsv > vaapi > libx264)..."
+    echo "==> Detecting video encoder (nvenc > qsv > vaapi > libx264)..."
     python -c "from app.streaming.encoder_detect import detect_encoder, describe_encoder; print('    Encoder:', describe_encoder(detect_encoder()))"
 fi
 

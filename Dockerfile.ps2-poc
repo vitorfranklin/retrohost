@@ -1,0 +1,70 @@
+# RetroHost - PS2 support POC (branch poc/ps2-support-headless-gl).
+#
+# This is NOT the production image (see Dockerfile). The single goal of this POC
+# is to validate whether the PS2 libretro core (pcsx2_libretro.so) can render
+# inside the existing headless pipeline (RetroArch -> FIFO -> ffmpeg) when we
+# give it a real OpenGL context via Xvfb instead of video_driver=null.
+#
+# See issue #20 and CONTRIBUTING.md ("Notes on PS2 (PCSX2)"):
+# video_driver=null is insufficient for PS2 because the core requires real
+# OpenGL/Vulkan. Xvfb is the simplest option to test first (works on any GPU/CPU
+# with Mesa llvmpipe as fallback); EGL surfaceless is left for a later iteration
+# if Xvfb does not perform well enough.
+#
+# POC scope (see docs/ps2-poc.md):
+#   - ONLY headless rendering. No PlayerService/API integration.
+#   - ONLY the libretro core inside RetroArch (reuses RetroArchDriver behavior).
+#   - NO BIOS, no analog input, no multi-disc handling.
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+ENV NVIDIA_DRIVER_CAPABILITIES=all \
+    NVIDIA_VISIBLE_DEVICES=all
+
+# retroarch (no apt core package; PS2 has no Ubuntu 24.04 package, so we
+# download the core from the official libretro buildbot below) + Xvfb (virtual
+# X server, gives the core a real GLX context for rendering) + mesa-utils/
+# glxinfo (diagnostic: confirm that GL is actually available inside the
+# container) + Mesa drivers (llvmpipe software fallback when /dev/dri is not
+# passed, VAAPI/Intel/AMD when it is).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        retroarch \
+        xvfb \
+        x11-utils \
+        mesa-utils \
+        libgl1-mesa-dri \
+        libglx-mesa0 \
+        mesa-va-drivers \
+        pulseaudio \
+        pulseaudio-utils \
+        unzip \
+        curl \
+        ca-certificates \
+        procps \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN arch="$(uname -m)"; \
+    if [ "$arch" != "x86_64" ]; then \
+        echo "ERROR: PS2 POC is x86_64-only, for the same reason as the main image." >&2; \
+        exit 1; \
+    fi
+
+# PS2 core (pcsx2_libretro.so), downloaded from the official libretro buildbot
+# because there is no Ubuntu 24.04 apt package. Nightly builds are acceptable for
+# the POC; if this becomes real support, use a pinned/stable version.
+ARG LIBRETRO_CORE_URL=https://buildbot.libretro.com/nightly/linux/x86_64/latest/pcsx2_libretro.so.zip
+RUN mkdir -p /app/cores \
+    && curl -sL -o /tmp/pcsx2_core.zip "$LIBRETRO_CORE_URL" \
+    && unzip -o /tmp/pcsx2_core.zip -d /app/cores \
+    && rm /tmp/pcsx2_core.zip \
+    && ls -la /app/cores
+
+WORKDIR /app
+
+COPY scripts/ps2-poc/render-smoketest.sh /app/render-smoketest.sh
+RUN chmod +x /app/render-smoketest.sh
+
+ENV HOME=/tmp
+
+ENTRYPOINT ["/app/render-smoketest.sh"]

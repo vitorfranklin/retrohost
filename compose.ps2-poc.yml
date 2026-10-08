@@ -1,0 +1,32 @@
+# RetroHost - PS2 POC compose file (branch poc/ps2-support-headless-gl).
+#
+# Isolated from the production compose.yml. Runs ONLY the headless rendering
+# smoke test (Dockerfile.ps2-poc / scripts/ps2-poc/render-smoketest.sh); it
+# does not start the API, WebRTC, or the rest of the RetroHost stack.
+#
+# Usage:
+#   docker compose -f compose.ps2-poc.yml build
+#   PS2_BIOS_DIR=/path/to/bios PS2_ISO_PATH=/path/to/game.iso \
+#     docker compose -f compose.ps2-poc.yml up
+#
+# Without GPU passthrough it falls back to Mesa llvmpipe (software rendering),
+# which is slower but still valid for proving that a real GL context works. To
+# use the host GPU, add `deploy.resources.reservations.devices` (NVIDIA) or
+# `devices: ["/dev/dri:/dev/dri"]` (Intel/AMD), as in the main compose.yml.
+
+services:
+  ps2-poc:
+    build:
+      context: .
+      dockerfile: Dockerfile.ps2-poc
+    container_name: retrohost-ps2-poc
+    environment:
+      PS2_BIOS_DIR: /bios
+      PS2_ISO_PATH: /iso/game.iso
+      PS2_POC_RUN_SECONDS: ${PS2_POC_RUN_SECONDS:-15}
+    volumes:
+      - ${PS2_BIOS_DIR:-./ps2-poc-bios}:/bios:ro
+      - ${PS2_ISO_PATH:-./ps2-poc-empty.iso}:/iso/game.iso:ro
+    # Uncomment to test with an Intel/AMD GPU via VAAPI/DRI:
+    # devices:
+    #   - /dev/dri:/dev/dri

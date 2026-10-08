@@ -55,7 +55,14 @@ def _qsv_profile(render_node: str = DEFAULT_RENDER_NODE) -> EncoderProfile:
 # Profiles without hardware-upload (pure codec). nvenc and v4l2m2m are accelerated but
 # accept software frames directly; libx264 is software.
 _SIMPLE_PROFILES: dict[str, list[str]] = {
+    # -profile:v baseline: NVENC defaults to Main, which some WebRTC decoders
+    # fail to decode silently (audio plays, video stays black — no error
+    # surfaced anywhere in the pipeline). libx264 below ends up at Baseline
+    # via -tune zerolatency, which is why this only showed up once NVENC was
+    # exercised for real (PS2 was the first console tested on a machine with
+    # a working nvidia-container-toolkit GPU passthrough).
     "h264_nvenc": ["-c:v", "h264_nvenc", "-preset", "p1", "-tune", "ll",
+                   "-profile:v", "baseline",
                    "-b:v", "4M", "-g", "30", "-bf", "0"],
     # -bf 0: WebRTC does NOT accept H.264 with B-frames (the browser rejects the stream
     # with "doesn't support H264 streams with B-frames"). The -tune zerolatency from

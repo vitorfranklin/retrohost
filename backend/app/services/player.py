@@ -18,6 +18,11 @@ from app.streaming.base import StreamingProvider
 
 # Time for RetroArch to open the FIFO and start writing before ffmpeg
 # connects as a reader — value validated manually (scripts/stream_pipeline.sh).
+# For consoles in CONSOLES_WITH_UNSTABLE_FIFO (PS2), this only needs to cover
+# process startup, not the full BIOS boot: FFmpegStreamingProvider does its
+# own active polling for the settled recording file before connecting (see
+# _source_for in streaming/ffmpeg_webrtc.py) rather than relying on a fixed
+# sleep to guess when RetroArch is ready.
 _FIFO_READY_DELAY_SECONDS = 2
 
 # play() only returns after mediamtx confirms the stream is published, so the
@@ -25,6 +30,17 @@ _FIFO_READY_DELAY_SECONDS = 2
 # (the RTSP publication by ffmpeg takes longer than the FIFO opening time).
 _STREAM_READY_TIMEOUT_SECONDS = 10
 _STREAM_READY_POLL_INTERVAL_SECONDS = 0.5
+
+# Consoles with a heavier boot path (BIOS load + shader compilation on first
+# draw, e.g. PS2/pcsx2_libretro — validated in poc/ps2-support-headless-gl,
+# see docs/ps2-poc.md) need more time before the stream is actually publishing
+# than the default budget above, which was tuned for PS1/SNES: this must cover
+# both FFmpegStreamingProvider's own polling wait (up to ~25s, see
+# _SOURCE_SETTLE_TIMEOUT_SECONDS in ffmpeg_webrtc.py) and mediamtx picking up
+# the RTSP publish afterwards.
+_STREAM_READY_TIMEOUT_OVERRIDES_SECONDS: dict[str, int] = {
+    "ps2": 50,
+}
 
 
 class StreamNotReadyError(RuntimeError):
@@ -53,11 +69,12 @@ class PlayerService:
         self._driver.launch(game)
         time.sleep(_FIFO_READY_DELAY_SECONDS)
         self._streaming.start(game)
-        self._wait_stream_ready()
+        self._wait_stream_ready(game.console)
         self._current_game = game
 
-    def _wait_stream_ready(self) -> None:
-        deadline = time.monotonic() + _STREAM_READY_TIMEOUT_SECONDS
+    def _wait_stream_ready(self, console: str) -> None:
+        timeout = _STREAM_READY_TIMEOUT_OVERRIDES_SECONDS.get(console, _STREAM_READY_TIMEOUT_SECONDS)
+        deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self._is_stream_ready():
                 return
