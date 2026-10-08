@@ -261,6 +261,14 @@ async function connectWhep() {
 
     videoPeerConnection = await connectWhepTrack("video", (event) => {
         gameVideo.srcObject = new MediaStream([event.track]);
+        // The <video> element isn't muted (there's a separate synced <audio>
+        // track), so browser autoplay policy can silently block it without
+        // ever calling .play() itself — audio (which browsers are more lax
+        // about) starts fine while video stays frozen, with no visible error
+        // anywhere in the pipeline. Same pattern as the audio .play() below.
+        gameVideo.play().catch((error) => {
+            console.warn("Video autoplay blocked:", error);
+        });
     });
 
     try {
@@ -421,6 +429,9 @@ for (const radio of storageForm.querySelectorAll('input[name="storage-mode"]')) 
 }
 fullscreenBtn.addEventListener("click", () => {
     gameVideo.requestFullscreen();
+    // User interaction — the browser will now allow play() even if the
+    // initial autoplay attempt in connectWhep() was blocked.
+    gameVideo.play().catch(() => {});
 });
 document.addEventListener("keydown", handleGameKeydown);
 document.addEventListener("keyup", handleGameKeyup);

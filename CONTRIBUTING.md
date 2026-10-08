@@ -138,9 +138,11 @@ RetroHost is designed so that adding a new console requires no backend code chan
 
 4. **Place ROMs** under `emulator/roms/gba/<game-title>/` and click **Scan library** in the UI.
 
-5. **(If the console requires BIOS)** Place the BIOS file in `emulator/bios/` and add BIOS copy logic in `RetroArchDriver._ensure_ps1_bios()` (currently PS1-specific; will be generalized when a second BIOS-requiring console is added).
+5. **(If the console requires BIOS)** Place the BIOS file in `emulator/bios/` and register it in `_BIOS_CONFIG` in `RetroArchDriver` (`backend/app/drivers/retroarch.py`) — `bios_names` (filenames the core expects) and `bios_subdir` (path relative to `SYSTEM_DIR`; most cores read BIOS directly from `SYSTEM_DIR`, but some, like `pcsx2_libretro`, expect a specific subdirectory).
 
-**Notes on PS2 (PCSX2):** `video_driver=null` is insufficient for PS2 — it requires real OpenGL or Vulkan rendering (Xvfb or EGL headless). This is the main blocker for PS2 support and is a planned improvement.
+6. **(If the core needs a real GPU context, e.g. RETRO_HW_RENDER cores like PCSX2)** Register the console in `_VIDEO_PROFILES` in `RetroArchDriver` with the `retroarch.cfg` overrides it needs (`video_driver`, `video_context_driver`, `video_gpu_record`, etc — applied per-launch via `--appendconfig`, without touching the shared `retroarch.cfg`). Consoles not listed keep the default `video_driver=null` behavior.
+
+**Notes on PS2 (PCSX2):** solved in the `poc/ps2-support-headless-gl` branch — see `docs/ps2-poc.md`. `video_driver=null` is insufficient for PS2 (the `pcsx2_libretro` core is `RETRO_HW_RENDER` and needs a real OpenGL context); Xvfb + `video_driver=gl`/`video_context_driver=x11` + `video_gpu_record=true` resolves it, validated end-to-end (BIOS load, game recognition, shader compilation, frames reaching the FIFO) inside the container without a dedicated GPU (Mesa llvmpipe).
 
 ---
 

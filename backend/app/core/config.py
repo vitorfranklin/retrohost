@@ -102,7 +102,15 @@ class Settings:
     VALID_ROM_EXTENSIONS: dict[str, set[str]] = {
         "ps1": {".cue", ".chd", ".pbp"},
         "snes": {".sfc", ".smc"},
+        "ps2": {".iso", ".chd"},
     }
+
+    # X display for consoles whose core needs a real OpenGL context (PS2 via
+    # pcsx2_libretro — video_driver=null is insufficient, see docs/ps2-poc.md).
+    # The container entrypoint starts Xvfb on this display only when a PS2
+    # core is configured; RetroArchDriver exports it as DISPLAY for that
+    # process. Irrelevant on the Pi / for consoles that stay on video_driver=null.
+    X_DISPLAY: str = os.environ.get("HOMEGAMES_X_DISPLAY", ":99")
 
     HOST: str = "0.0.0.0"
     PORT: int = 8000
